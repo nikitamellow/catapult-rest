@@ -18,6 +18,10 @@
  * along with Catapult.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+const { expect } = require('chai');
+const catapult = require('catapult-sdk');
+
+const { convert } = catapult.utils;
 const blockRoutes = require('../../src/routes/blockRoutes');
 const test = require('./utils/routeTestUtils');
 
@@ -120,6 +124,120 @@ describe('block routes', () => {
 
 			pagingTestsFactory.addDefault();
 			pagingTestsFactory.addNonPagingParamFailureTest('height', '-1');
+		});
+	});
+
+	describe('block with merkle tree', () => {
+		const rd = {
+			route: '/block/:height/transaction/:hash/merkle',
+			dbApiName: 'blockWithMerkleTreeAtHeight',
+			type: 'merkleProofInfo',
+			extendDb: addChainInfoToDb,
+			config: routeConfig
+		};
+
+		const formatHashAsParam = hash => test.factory.createBinary(Buffer.from(convert.hexToUint8(hash), 'hex'));
+
+		const db = test.setup.createCapturingDbWithExtensions(rd, [], {
+			meta: {
+				numTransactions: 4,
+				merkleTree: [
+					formatHashAsParam('9922093F19F7160BDCBCA8AA48499DA8DF532D4102745670B85AA4BDF63B8D59'),
+					formatHashAsParam('E8FCFD95CA220D442BE748F5494001A682DC8015A152EBC433222136E99A96B8'),
+					formatHashAsParam('C1C1062C63CAB4197C87B366052ECE3F4FEAE575D81A7F728F4E3704613AF876'),
+					formatHashAsParam('F8E8FCDAD1B94D2C76D769B113FF5CAC5D5170772F2D80E466EB04FCA23D6887'),
+					formatHashAsParam('2D3418274BBC250616223C162534B460216AED82C4FA9A87B53083B7BA7A9391'),
+					formatHashAsParam('AEAF30ED55BBE4805C53E5232D88242F0CF719F99A8E6D339BCBF5D5DE85E1FB'),
+					formatHashAsParam('AFE6C917BABA60ADC1512040CC35033B563DAFD1718FA486AB1F3D9B84866B27')
+				]
+			}
+		});
+
+		it('should return a merkle path if the transaction and block were correct', () => {
+			const urlParams = {
+				height: '10',
+				hash: 'C1C1062C63CAB4197C87B366052ECE3F4FEAE575D81A7F728F4E3704613AF876'
+			};
+
+			const expectedResult = {
+				payload: {
+					rootHash: 'AFE6C917BABA60ADC1512040CC35033B563DAFD1718FA486AB1F3D9B84866B27',
+					merklePath: [
+						{
+							position: 2,
+							hash: 'F8E8FCDAD1B94D2C76D769B113FF5CAC5D5170772F2D80E466EB04FCA23D6887'
+						},
+						{
+							position: 1,
+							hash: '2D3418274BBC250616223C162534B460216AED82C4FA9A87B53083B7BA7A9391'
+						}
+					]
+				},
+				type: 'merkleProofInfo'
+			};
+
+			return test.route.executeSingle(blockRoutes.register, rd.route, 'get', urlParams, db, rd.config, response => {
+				expect(response).to.deep.equal(expectedResult);
+			});
+		});
+
+		it('should throw error for invalid block height', () => {
+			const urlParams = {
+				height: '4aa',
+				hash: 'A1C1062C63CAB4197C87B366052ECE3F4FEAE575D81A7F728F4E3704613AF876'
+			};
+
+			return test.route.executeThrows(
+				blockRoutes.register,
+				rd.route,
+				'get',
+				urlParams,
+				db,
+				rd.config,
+				'height has an invalid format',
+				409
+			);
+		});
+
+		it('should throw error for invalid hash format', () => {
+			const urlParams = {
+				height: '1',
+				hash: 'E3F4FEAE575D81A7F728F4E3704613AF'
+			};
+
+			return test.route.executeThrows(blockRoutes.register, rd.route, 'get', urlParams, db, rd.config, 'hash has an invalid format', 409);
+		});
+
+		it('should throw error if block has no transactions, thus no merkle tree (hash does not belong to block)', () => {
+			// Arrange
+			const localDb = test.setup.createCapturingDbWithExtensions(rd, [], {
+				meta: {
+					numTransactions: 0
+				}
+			});
+
+			// Assert
+			const urlParams = {
+				height: '10',
+				hash: 'A1C1062C63CAB4197C87B366052ECE3F4FEAE575D81A7F728F4E3704613AF876'
+			};
+
+			return test.route.executeSingle(blockRoutes.register, rd.route, 'get', urlParams, localDb, rd.config, response => {
+				expect(response.body.code).to.equal('InvalidArgument');
+				expect(response.body.message).to.contain('not included in block height');
+			});
+		});
+
+		it('should throw error if transaction is not found in the block\'s merkle tree', () => {
+			const urlParams = {
+				height: '10',
+				hash: 'B1C1062C63CAB4197C87B366052ECE3F4FEAE575D81A7F728F4E3704613AF876'
+			};
+
+			return test.route.executeSingle(blockRoutes.register, rd.route, 'get', urlParams, db, rd.config, response => {
+				expect(response.body.code).to.equal('InvalidArgument');
+				expect(response.body.message).to.contain('not included in block height');
+			});
 		});
 	});
 });

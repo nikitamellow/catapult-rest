@@ -58,6 +58,7 @@ class ModelSchemaBuilder {
 				meta: { type: ModelType.object, schemaName: 'blockHeaderMetadata' },
 				block: { type: ModelType.object, schemaName: 'blockHeader' }
 			},
+			merkleProofInfo: {},
 
 			// endregion
 
