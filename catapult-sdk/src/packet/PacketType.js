@@ -44,7 +44,10 @@ const PacketType = {
 	pushDetachedCosignatures: 501,
 
 	/** Node information has been requested by a peer */
-	nodeDiscoveryPullPing: 601
+	nodeDiscoveryPullPing: 601,
+
+	/* Network time information has been requested by a peer. */ 
+	timeSyncNetworkTime: 700
 };
 
 module.exports = PacketType;

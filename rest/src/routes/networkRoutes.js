@@ -20,6 +20,7 @@
 
 const catapult = require('catapult-sdk');
 const nodeInfoCodec = require('../sockets/nodeInfoCodec');
+const networkTimeCodec = require('../sockets/networkTimeCodec');
 
 const packetHeader = catapult.packet.header;
 const { PacketType } = catapult.packet;
@@ -44,12 +45,30 @@ module.exports = {
 				return Buffer.concat(buffers, length);
 			};
 			const packetBuffer = createPacketFromBuffer('', PacketType.nodeDiscoveryPullPing);
-			return connections.lease()
+			return connections.lease()	// FIXME Remove return value?
 				.then(connection => connection.pushPull(packetBuffer))
 				.then(packet => {
 					const binaryParser = new BinaryParser();
 					binaryParser.push(packet.payload);
 					res.send(200, nodeInfoCodec.deserialize(binaryParser));
+					next();
+				});
+		});
+
+		server.get('/network/time', (req, res, next) => {
+			const createPacketFromBuffer = (data, packetType) => {
+				const length = packetHeader.size + data.length;
+				const header = packetHeader.createBuffer(packetType, length);
+				const buffers = [header, Buffer.from(data)];
+				return Buffer.concat(buffers, length);
+			};
+			const packetBuffer = createPacketFromBuffer('', PacketType.timeSyncNetworkTime);
+			connections.lease()	// FIXME Remove return value?
+				.then(connection => connection.pushPull(packetBuffer))
+				.then(packet => {
+					const binaryParser = new BinaryParser();
+					binaryParser.push(packet.payload);
+					res.send(200, networkTimeCodec.deserialize(binaryParser));
 					next();
 				});
 		});

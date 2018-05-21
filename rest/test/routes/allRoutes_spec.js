@@ -56,6 +56,7 @@ describe('all routes', () => {
 
 			'/network',
 			'/network/info',
+			'/network/time',
 
 			'/transaction/:transactionId',
 			'/transaction/:hash/status',
